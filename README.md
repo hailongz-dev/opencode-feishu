@@ -2,7 +2,7 @@
 
 OpenCode plugin for Feishu/Lark
 
-将飞书 (Feishu/Lark) 消息与 [OpenCode](https://opencode.ai) AI 会话对接的 TypeScript 服务。
+将飞书 (Feishu/Lark) 消息与 [OpenCode](https://opencode.ai) AI 会话对接的 OpenCode 插件。
 
 ---
 
@@ -19,7 +19,7 @@ OpenCode plugin for Feishu/Lark
 
 ## 工作原理
 
-本服务通过飞书 **WebSocket 长连接** 接收事件，无需公网 IP 或 HTTP 服务器。
+本插件以 **OpenCode 插件** 的形式运行，在 OpenCode 启动时被加载。插件通过飞书 **WebSocket 长连接** 接收事件，无需公网 IP 或独立 HTTP 服务器。OpenCode 运行时提供已配置好的 SDK 客户端，插件直接使用该客户端与 OpenCode 的会话系统交互。
 
 ```
 飞书用户发消息
@@ -34,6 +34,7 @@ FeishuHandler
      │
      ▼
 OpencodeService.prompt(sessionId, parts)
+（使用 PluginInput.client —— 由 OpenCode 运行时注入）
      │
      ▼
 等待 OpenCode 响应
@@ -51,44 +52,34 @@ feishuClient.im.message.reply(...)
 
 ### 1. 前置条件
 
-- Node.js >= 18
-- 运行中的 OpenCode 实例（默认地址：`http://localhost:4096`）
+- [OpenCode](https://opencode.ai) >= 0.1（运行中）
 - [飞书开放平台](https://open.feishu.cn) 自建应用（需开启机器人能力）
 
-### 2. 克隆并安装依赖
+### 2. 安装插件
 
-```bash
-git clone https://github.com/hailongz-dev/opencode-feishu.git
-cd opencode-feishu
-npm install
+在项目的 `opencode.json`（或全局 `~/.config/opencode/opencode.json`）中添加：
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["opencode-feishu"]
+}
 ```
+
+OpenCode 将在启动时自动通过 Bun 安装并加载本插件。
 
 ### 3. 配置环境变量
 
-```bash
-cp .env.example .env
-```
-
-编辑 `.env`：
+在运行 OpenCode 的环境中设置以下环境变量：
 
 ```env
 FEISHU_APP_ID=cli_xxxxxxxxxxxxxxxx        # 飞书应用 ID
 FEISHU_APP_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx # 飞书应用密钥
-OPENCODE_BASE_URL=http://localhost:4096    # OpenCode 服务地址
 ```
 
-### 4. 启动服务
+> **提示**：可将上述变量添加到 `.env` 文件（需确保 OpenCode 启动前已加载），或直接在 shell 中导出。
 
-```bash
-# 生产模式
-npm run build
-npm start
-
-# 开发模式
-npm run dev
-```
-
-### 5. 配置飞书开放平台
+### 4. 配置飞书开放平台
 
 1. 在 [飞书开发者后台](https://open.feishu.cn/app) 打开你的应用
 2. 进入 **事件订阅** → 选择订阅方式为 **使用长连接接收事件**
@@ -118,7 +109,7 @@ npm run dev
 
 ```
 src/
-├── index.ts           # 入口：加载环境变量、启动 WSClient 长连接
+├── index.ts           # 插件入口：导出 FeishuPlugin（Plugin 类型）
 ├── feishu-handler.ts  # 核心业务逻辑：处理飞书消息事件
 ├── opencode.ts        # OpenCode SDK 封装：创建 Session、发送 Prompt
 ├── session-store.ts   # 内存 Session 映射表（飞书消息 ID ↔ OpenCode Session ID）
@@ -134,10 +125,27 @@ src/
 
 ```bash
 npm run build   # 编译 TypeScript
-npm start       # 运行编译后的代码
-npm run dev     # 开发模式（ts-node）
 npm run lint    # TypeScript 类型检查
 npm test        # 运行单元测试
+```
+
+---
+
+## 插件 API
+
+本插件遵循 [OpenCode 插件开发规范](https://opencode.ai/docs/plugins/)，导出符合 `Plugin` 接口的函数：
+
+```typescript
+import type { Plugin } from "@opencode-ai/plugin";
+
+export const FeishuPlugin: Plugin = async (input) => {
+  // input.client — OpenCode SDK 客户端（由运行时注入）
+  // input.project — 当前项目信息
+  // ...
+  return {}; // 返回 Hooks 对象
+};
+
+export default FeishuPlugin;
 ```
 
 ---
@@ -145,15 +153,16 @@ npm test        # 运行单元测试
 ## 会话映射说明
 
 - 飞书消息中的 `root_id` 字段标识消息所在线程的根消息 ID
-- 本服务以 `root_id`（若无则取 `message_id`）作为键，映射到对应的 OpenCode Session ID
+- 本插件以 `root_id`（若无则取 `message_id`）作为键，映射到对应的 OpenCode Session ID
 - 映射数据存储在内存中；如需持久化，替换 `SessionStore` 类为 Redis / SQLite 实现即可
 
 ---
 
 ## 参考资料
 
-- [OpenCode 文档](https://opencode.ai/docs)
+- [OpenCode 插件开发文档](https://opencode.ai/docs/plugins/)
 - [OpenCode SDK（@opencode-ai/sdk）](https://www.npmjs.com/package/@opencode-ai/sdk)
+- [OpenCode Plugin 包（@opencode-ai/plugin）](https://www.npmjs.com/package/@opencode-ai/plugin)
 - [飞书开放平台 SDK（@larksuiteoapi/node-sdk）](https://www.npmjs.com/package/@larksuiteoapi/node-sdk)
 - [飞书长连接接收事件说明](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/notification-v2/server-push/subscription-method)
 

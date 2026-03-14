@@ -1,22 +1,29 @@
-import "dotenv/config";
 import * as lark from "@larksuiteoapi/node-sdk";
+import type { Plugin, Hooks } from "@opencode-ai/plugin";
 import { SessionStore } from "./session-store.js";
 import { OpencodeService } from "./opencode.js";
 import { FeishuHandler } from "./feishu-handler.js";
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value;
-}
+/**
+ * OpenCode plugin that bridges Feishu/Lark messaging with OpenCode AI sessions.
+ *
+ * Configuration (via environment variables):
+ *   FEISHU_APP_ID     — Feishu application ID
+ *   FEISHU_APP_SECRET — Feishu application secret
+ *
+ * Add to your opencode.json:
+ *   { "plugin": ["opencode-feishu"] }
+ */
+export const FeishuPlugin: Plugin = async (input) => {
+  const appId = process.env["FEISHU_APP_ID"];
+  const appSecret = process.env["FEISHU_APP_SECRET"];
 
-async function main(): Promise<void> {
-  const appId = requireEnv("FEISHU_APP_ID");
-  const appSecret = requireEnv("FEISHU_APP_SECRET");
-  const opencodeBaseUrl =
-    process.env["OPENCODE_BASE_URL"] ?? "http://localhost:4096";
+  if (!appId || !appSecret) {
+    console.warn(
+      "[opencode-feishu] FEISHU_APP_ID or FEISHU_APP_SECRET is not set — plugin disabled"
+    );
+    return {} satisfies Hooks;
+  }
 
   // Feishu SDK client (used for sending messages and downloading resources)
   const feishuClient = new lark.Client({
@@ -26,8 +33,8 @@ async function main(): Promise<void> {
     domain: lark.Domain.Feishu,
   });
 
-  // OpenCode service
-  const opencodeService = new OpencodeService(opencodeBaseUrl);
+  // OpenCode service — uses the client provided by the plugin runtime
+  const opencodeService = new OpencodeService(input.client);
 
   // Session mapping store (in-memory)
   const sessionStore = new SessionStore();
@@ -51,13 +58,14 @@ async function main(): Promise<void> {
   // WebSocket client — receives events via persistent connection (no HTTP server needed)
   const wsClient = new lark.WSClient({ appId, appSecret });
 
-  console.log(`opencode-feishu starting (WebSocket mode)`);
-  console.log(`  OpenCode base URL: ${opencodeBaseUrl}`);
+  // Start the WebSocket listener in the background; do not block plugin initialization
+  wsClient.start({ eventDispatcher }).catch((err: unknown) => {
+    console.error("[opencode-feishu] Feishu WebSocket error:", err);
+  });
 
-  await wsClient.start({ eventDispatcher });
-}
+  console.log("[opencode-feishu] Feishu plugin started (WebSocket mode)");
 
-main().catch((err) => {
-  console.error("Fatal error:", err);
-  process.exit(1);
-});
+  return {} satisfies Hooks;
+};
+
+export default FeishuPlugin;
