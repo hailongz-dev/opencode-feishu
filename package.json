@@ -2,17 +2,22 @@
   "name": "opencode-feishu",
   "version": "1.0.0",
   "type": "module",
-  "description": "OpenCode plugin for Feishu/Lark — integrates Feishu messaging with OpenCode AI sessions",
+  "description": "OpenCode plugin for Feishu/Lark — bridges Feishu messaging with OpenCode AI sessions",
   "main": "dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node --esm src/index.ts",
     "lint": "tsc --noEmit",
     "test": "node --experimental-vm-modules node_modules/.bin/jest --passWithNoTests"
   },
   "keywords": [
     "opencode",
+    "opencode-plugin",
     "feishu",
     "lark",
     "plugin",
@@ -22,12 +27,13 @@
   "license": "MIT",
   "dependencies": {
     "@larksuiteoapi/node-sdk": "^1.59.0",
-    "@opencode-ai/sdk": "^1.2.26",
-    "dotenv": "^17.3.1"
+    "@opencode-ai/plugin": "^1.2.26",
+    "@opencode-ai/sdk": "^1.2.26"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
     "@types/node": "^22.13.17",
+    "dotenv": "^17.3.1",
     "jest": "^29.7.0",
     "ts-jest": "^29.3.1",
     "ts-node": "^10.9.2",

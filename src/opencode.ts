@@ -1,4 +1,4 @@
-import { createOpencodeClient, OpencodeClient } from "@opencode-ai/sdk/client";
+import type { OpencodeClient } from "@opencode-ai/sdk/client";
 import type {
   TextPartInput,
   FilePartInput,
@@ -8,12 +8,13 @@ export type { TextPartInput, FilePartInput };
 
 /**
  * Wraps the OpenCode SDK client to provide session management helpers.
+ * The client is injected by the OpenCode plugin runtime via PluginInput.
  */
 export class OpencodeService {
   private readonly client: OpencodeClient;
 
-  constructor(baseUrl: string) {
-    this.client = createOpencodeClient({ baseUrl });
+  constructor(client: OpencodeClient) {
+    this.client = client;
   }
 
   /**
