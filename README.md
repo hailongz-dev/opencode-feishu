@@ -19,11 +19,13 @@ OpenCode plugin for Feishu/Lark
 
 ## 工作原理
 
+本服务通过飞书 **WebSocket 长连接** 接收事件，无需公网 IP 或 HTTP 服务器。
+
 ```
 飞书用户发消息
      │
      ▼
-Express Webhook (POST /webhook/feishu)
+WSClient（飞书 WebSocket 长连接）
      │
      ▼
 FeishuHandler
@@ -72,10 +74,7 @@ cp .env.example .env
 ```env
 FEISHU_APP_ID=cli_xxxxxxxxxxxxxxxx        # 飞书应用 ID
 FEISHU_APP_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx # 飞书应用密钥
-FEISHU_VERIFICATION_TOKEN=xxxxxxxx         # 事件订阅验证 Token
-FEISHU_ENCRYPT_KEY=                        # 加密密钥（可选）
 OPENCODE_BASE_URL=http://localhost:4096    # OpenCode 服务地址
-PORT=3000                                  # 本服务监听端口
 ```
 
 ### 4. 启动服务
@@ -89,19 +88,17 @@ npm start
 npm run dev
 ```
 
-服务启动后：
-- Webhook 接收地址：`POST /webhook/feishu`
-- 健康检查：`GET /health`
-
 ### 5. 配置飞书开放平台
 
 1. 在 [飞书开发者后台](https://open.feishu.cn/app) 打开你的应用
-2. 进入 **事件订阅** → 添加事件 → 搜索并订阅 `im.message.receive_v1`
-3. 配置请求地址为你的公网地址：`https://your-domain.com/webhook/feishu`
+2. 进入 **事件订阅** → 选择订阅方式为 **使用长连接接收事件**
+3. 添加事件 → 搜索并订阅 `im.message.receive_v1`
 4. 在 **权限管理** 中开启以下权限：
    - `im:message.receive_v1`（接收消息）
    - `im:message:send_as_bot`（发送消息）
    - `im:message`（读取消息）
+
+> **注意**：使用长连接模式无需配置公网回调地址，服务器主动连接飞书即可接收事件。
 
 ---
 
@@ -121,8 +118,7 @@ npm run dev
 
 ```
 src/
-├── index.ts           # 入口：加载环境变量、启动 Express 服务
-├── server.ts          # Express 应用工厂：注册飞书 Webhook 路由
+├── index.ts           # 入口：加载环境变量、启动 WSClient 长连接
 ├── feishu-handler.ts  # 核心业务逻辑：处理飞书消息事件
 ├── opencode.ts        # OpenCode SDK 封装：创建 Session、发送 Prompt
 ├── session-store.ts   # 内存 Session 映射表（飞书消息 ID ↔ OpenCode Session ID）
@@ -159,5 +155,5 @@ npm test        # 运行单元测试
 - [OpenCode 文档](https://opencode.ai/docs)
 - [OpenCode SDK（@opencode-ai/sdk）](https://www.npmjs.com/package/@opencode-ai/sdk)
 - [飞书开放平台 SDK（@larksuiteoapi/node-sdk）](https://www.npmjs.com/package/@larksuiteoapi/node-sdk)
-- [飞书事件订阅配置指南](https://open.feishu.cn/document/event-subscription-guide/callback-subscription/step-1-choose-a-subscription-mode/configure-callback-request-address)
+- [飞书长连接接收事件说明](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/notification-v2/server-push/subscription-method)
 

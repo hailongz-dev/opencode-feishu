@@ -3,7 +3,6 @@ import * as lark from "@larksuiteoapi/node-sdk";
 import { SessionStore } from "./session-store.js";
 import { OpencodeService } from "./opencode.js";
 import { FeishuHandler } from "./feishu-handler.js";
-import { createServer } from "./server.js";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -16,13 +15,10 @@ function requireEnv(name: string): string {
 async function main(): Promise<void> {
   const appId = requireEnv("FEISHU_APP_ID");
   const appSecret = requireEnv("FEISHU_APP_SECRET");
-  const verificationToken = process.env["FEISHU_VERIFICATION_TOKEN"];
-  const encryptKey = process.env["FEISHU_ENCRYPT_KEY"];
   const opencodeBaseUrl =
     process.env["OPENCODE_BASE_URL"] ?? "http://localhost:4096";
-  const port = parseInt(process.env["PORT"] ?? "3000", 10);
 
-  // Feishu SDK client
+  // Feishu SDK client (used for sending messages and downloading resources)
   const feishuClient = new lark.Client({
     appId,
     appSecret,
@@ -43,20 +39,22 @@ async function main(): Promise<void> {
     opencodeService
   );
 
-  // HTTP server
-  const app = createServer(
-    feishuClient,
-    feishuHandler,
-    verificationToken,
-    encryptKey
-  );
-
-  app.listen(port, () => {
-    console.log(`opencode-feishu server listening on port ${port}`);
-    console.log(`  Webhook endpoint: POST /webhook/feishu`);
-    console.log(`  Health check:     GET  /health`);
-    console.log(`  OpenCode base URL: ${opencodeBaseUrl}`);
+  // Event dispatcher — registers handlers for incoming Feishu events
+  const eventDispatcher = new lark.EventDispatcher({}).register({
+    "im.message.receive_v1": async (data) => {
+      await feishuHandler.handleMessageEvent(
+        data as Parameters<typeof feishuHandler.handleMessageEvent>[0]
+      );
+    },
   });
+
+  // WebSocket client — receives events via persistent connection (no HTTP server needed)
+  const wsClient = new lark.WSClient({ appId, appSecret });
+
+  console.log(`opencode-feishu starting (WebSocket mode)`);
+  console.log(`  OpenCode base URL: ${opencodeBaseUrl}`);
+
+  await wsClient.start({ eventDispatcher });
 }
 
 main().catch((err) => {
